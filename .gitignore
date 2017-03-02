@@ -1,4 +1,5 @@
 .vscode/
+Project1.xcodeproj/
 .DS_Store
 # Prerequisites
 *.d
