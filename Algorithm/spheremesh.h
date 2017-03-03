@@ -46,6 +46,12 @@ class Vector3d {
         float magnitude() {
             return sqrt(x * x + y * y + z * z);
         }
+        void normalize() {
+            float len = sqrt(x * x + y * y + z * z);
+            x = x / len;
+            y = y / len;
+            z = z / len;
+        }
 };
 class Sphere {
     public:

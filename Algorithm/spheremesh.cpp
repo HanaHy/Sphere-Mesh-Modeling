@@ -22,14 +22,12 @@ class Face {
         Vertex* a;
         Vertex* b;
         Vertex* c;
-        Face(Vector3d norm, Vertex* ap, Vertex* bp, Vertex *cp) : normal(norm), a(ap), b(bp), c(cp) {}
-        Face() {}
-        float getArea() {
-            Vector3d one = Vector3d::sub(b->point, a->point);
-            Vector3d two = Vector3d::sub(c->point, a->point);
-            Vector3d cross = Vector3d::cross(one, two);
-            return cross.magnitude() * 0.5;
+        float area;
+        Face(Vector3d norm, Vertex* ap, Vertex* bp, Vertex *cp) : normal(norm), a(ap), b(bp), c(cp) {
+            area = normal.magnitude() * 0.5;
+            normal.normalize();
         }
+        Face() {}
 };
 class SQEM {
     public:
@@ -46,7 +44,7 @@ class SQEM {
             vector<Face*> faces = vertex->faces;
             for (int i = 0; i < faces.size(); i++) {
                 Face* face = faces[i];
-                float coeff = face->getArea() * 1/3;
+                float coeff = face->area * 1/3;
                 SQEM faceSqem(face);
                 A += coeff * faceSqem.A;
                 b += coeff * faceSqem.b;
