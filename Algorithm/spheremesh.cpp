@@ -3,6 +3,8 @@
 #include <sstream>
 #include "Eigen/Dense"
 
+#define epsilon 0.0001
+
 using Eigen::Matrix4f;
 using Eigen::Vector4f;
 
@@ -78,6 +80,31 @@ class SQEM {
             return left + middle + c;
         }
         Sphere getMinSphere() {
+            float determinant = A.determinant();
+            if (determinant > epsilon) {
+                Matrix4f inverse = A.inverse();
+                Vector4f minimum = inverse * b;
+                float radius = minimum(3);
+                if (radius >= 0) {
+                    Vector3d center(minimum(0), minimum(1), minimum(2));
+                    Sphere sphere(center, radius);
+                    return sphere;
+                }
+            }
+        }
+        Sphere getMinSphere(Vector3d u, Vector3d v) {
+            float determinant = A.determinant();
+            if (determinant > epsilon) {
+                Matrix4f inverse = A.inverse();
+                Vector4f minimum = inverse * b;
+                float radius = minimum(3);
+                if (radius >= 0) {
+                    Vector3d center(minimum(0), minimum(1), minimum(2));
+                    Sphere sphere(center, radius);
+                    return sphere;
+                }
+            }
+
             Sphere sphere;
             return sphere;
         }
@@ -86,6 +113,8 @@ class SphereVertex {
     public:
         SQEM sqem;
         vector<SphereVertex*> neighbors;
+        Vector3d u;
+        Vector3d v;
         SphereVertex() {}
 };
 
