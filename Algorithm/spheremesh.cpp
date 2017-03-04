@@ -7,6 +7,8 @@
 
 using Eigen::Matrix4f;
 using Eigen::Vector4f;
+using Eigen::Matrix3f;
+using Eigen::Vector3f;
 
 class Face;
 class Vertex {
@@ -77,32 +79,65 @@ class SQEM {
 
             return left + middle + c;
         }
-        Sphere getMinSphere() {
-            float determinant = A.determinant();
-            if (determinant > epsilon) {
-                Matrix4f inverse = A.inverse();
-                Vector4f minimum = inverse * b;
+        Sphere getMinSphere(float maxRadius, Vector3d point) {
+            if (A.determinant() > epsilon) {
+                //Need to optimize inverses!!!
+                Matrix4f sqemInverse = A.inverse();
+                Vector4f minimum = sqemInverse * b;
                 float radius = minimum(3);
-                if (radius >= 0) {
+                if (radius >= 0 && radius <= maxRadius) {
                     Vector3d center(minimum(0), minimum(1), minimum(2));
                     Sphere sphere(center, radius);
                     return sphere;
-                }
-            }
-        }
-        Sphere getMinSphere(Vector3d u, Vector3d v) {
-            float determinant = A.determinant();
-            if (determinant > epsilon) {
-                Matrix4f inverse = A.inverse();
-                Vector4f minimum = inverse * b;
-                float radius = minimum(3);
-                if (radius >= 0) {
-                    Vector3d center(minimum(0), minimum(1), minimum(2));
-                    Sphere sphere(center, radius);
-                    return sphere;
-                }
-            }
+                } else {
+                    Matrix3f qem;
+                    qem << A(0, 0), A(0, 1), A(0, 2),
+                           A(1, 0), A(1, 1), A(1, 2),
+                           A(2, 0), A(2, 1), A(2, 2);
+                    if (qem.determinant() > epsilon) {
+                        Matrix3f qemInverse = qem.inverse();
+                        //radius = 0
+                        Vector3f qemB;
+                        qemB << b(0), b(1), b(2);
+                        Vector3f qemNullCenter = qemInverse * qemB;
 
+                        //radius = maxRadius
+                        //Need to derive this!
+                    }
+                }
+            }
+            //Solve for point
+        }
+        Sphere getMinSphere(Vector3d u, Vector3d v, float maxRadius) {
+            if (A.determinant() > epsilon) {
+                //Need to optimize inverses!!!
+                Matrix4f sqemInverse = A.inverse();
+                Vector4f minimum = sqemInverse * b;
+                float radius = minimum(3);
+                if (radius >= 0 && radius <= maxRadius) {
+                    Vector3d center(minimum(0), minimum(1), minimum(2));
+                    Sphere sphere(center, radius);
+                    return sphere;
+                } else {
+                    Matrix3f qem;
+                    qem << A(0, 0), A(0, 1), A(0, 2),
+                           A(1, 0), A(1, 1), A(1, 2),
+                           A(2, 0), A(2, 1), A(2, 2);
+                    if (qem.determinant() > epsilon) {
+                        Matrix3f qemInverse = qem.inverse();
+                        //radius = 0
+                        Vector3f qemB;
+                        qemB << b(0), b(1), b(2);
+                        Vector3f qemNullCenter = qemInverse * qemB;
+
+                        //radius = maxRadius
+                        //Need to derive this!
+                    }
+                }
+            }
+            //Look for point on [uv]
+
+            //If above not invertible, solve for fixed point on midpoint, variant radius
             Sphere sphere;
             return sphere;
         }
