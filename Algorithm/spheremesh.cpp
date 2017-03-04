@@ -100,13 +100,26 @@ class SQEM {
                         Vector3f qemB;
                         qemB << b(0), b(1), b(2);
                         Vector3f qemNullCenter = qemInverse * qemB;
+                        Sphere nullSphere(Vector3d(qemNullCenter(0), qemNullCenter(1), qemNullCenter(2)), 0);
 
                         //radius = maxRadius
-                        //Need to derive this!
+                        Vector3f bias;
+                        bias << A(0, 3), A(1, 3), b(2, 3);
+                        Vector3f qemMaxCenter = qemInverse * (qemB - maxRadius * bias);
+                        Sphere maxSphere(Vector3d(qemMaxCenter(0), qemMaxCenter(1), qemMaxCenter(2)), maxRadius);
+
+                        if (computeError(nullSphere) <= computeError(maxSphere)) {
+                            return nullSphere;
+                        } else {
+                            return maxSphere;
+                        }
                     }
                 }
             }
+
             //Solve for point
+            Sphere sphere;
+            return sphere;
         }
         Sphere getMinSphere(Vector3d u, Vector3d v, float maxRadius) {
             if (A.determinant() > epsilon) {
@@ -129,12 +142,23 @@ class SQEM {
                         Vector3f qemB;
                         qemB << b(0), b(1), b(2);
                         Vector3f qemNullCenter = qemInverse * qemB;
+                        Sphere nullSphere(Vector3d(qemNullCenter(0), qemNullCenter(1), qemNullCenter(2)), 0);
 
                         //radius = maxRadius
-                        //Need to derive this!
+                        Vector3f bias;
+                        bias << A(0, 3), A(1, 3), b(2, 3);
+                        Vector3f qemMaxCenter = qemInverse * (qemB - maxRadius * bias);
+                        Sphere maxSphere(Vector3d(qemMaxCenter(0), qemMaxCenter(1), qemMaxCenter(2)), maxRadius);
+
+                        if (computeError(nullSphere) <= computeError(maxSphere)) {
+                            return nullSphere;
+                        } else {
+                            return maxSphere;
+                        }
                     }
                 }
             }
+            //A not invertible
             //Look for point on [uv]
 
             //If above not invertible, solve for fixed point on midpoint, variant radius
