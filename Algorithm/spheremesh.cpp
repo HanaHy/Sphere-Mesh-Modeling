@@ -283,18 +283,21 @@ class SphereVertex {
         SQEM sqem;
         Vector3d u;
         Vector3d v;
-        Vector3d center;
+        Sphere sphere;
         vector<SphereVertex*> neighbors;
         SphereVertex(Vertex* vertex) {
             sqem = SQEM(vertex);
-            center = vertex->point;
+            sqem.getMinSphere(vertex->point, 1000, &sphere);
         }
-        SphereVertex(SQEM sq, Vector3d cen) : sqem(sq), center(cen) {
+        SphereVertex(SQEM sq, Sphere sph) : sqem(sq), sphere(sph) {
         }
         void addNeighbor(SphereVertex* neighbor) {
             if (find(neighbors.begin(), neighbors.end(), neighbor) == neighbors.end()) {
                 neighbors.push_back(neighbor);
             }
+        }
+        void removeNeighbor(SphereVertex* neighbor) {
+            neighbors.erase(remove(neighbors.begin(), neighbors.end(), neighbor), neighbors.end());
         }
 };
 class SVEdge {
@@ -306,7 +309,7 @@ class SVEdge {
         Sphere minSphere;
         SVEdge(SphereVertex* o, SphereVertex* t) : one(o), two(t) {
             sqem = SQEM::addSQEMs(o->sqem, t->sqem);
-            cost = sqem.getMinSphere(o->center, t->center, 1000, &minSphere);
+            cost = sqem.getMinSphere(o->sphere.center, t->sphere.center, 1000, &minSphere);
         }
 };
 
@@ -366,6 +369,15 @@ bool equalsEdge(SVEdge* one, SVEdge* two) {
     }
     return false;
 }
+bool equalsEdge(SVEdge* one, SphereVertex* a, SphereVertex* b) {
+    if (one->one == a && one->two == b) {
+        return true;
+    }
+    if (one->one == b && one->two == a) {
+        return true;
+    }
+    return false;
+}
 bool contains(SVEdge* find, vector<SVEdge*> *edges) {
     for (int i = 0; i < edges->size(); i++) {
         if (equalsEdge(find, edges->at(i))) {
@@ -377,26 +389,72 @@ bool contains(SVEdge* find, vector<SVEdge*> *edges) {
 class EdgeComparator {
     public:
         bool operator() (SVEdge* one, SVEdge* two) {
-            return one->cost>two->cost;
+            return one->cost<two->cost;
         }
 };
 
+class EdgePriorityQueue : public priority_queue<SVEdge*, vector<SVEdge*>, EdgeComparator> {
+    public: 
+        bool remove(SVEdge* edgeR) {
+            vector<SVEdge*> copyC(this->c);
+            for (int i = 0; i < copyC.size(); i++) {
+                SVEdge* edge = copyC[i];
+                if (equalsEdge(edge, edgeR)) {
+                    this->c.erase(this->c.begin() + i);
+                    return true;
+                }
+            }
+            return false;
+        }
+        bool remove(SphereVertex* one, SphereVertex* two) {
+            vector<SVEdge*> copyC(this->c);
+            for (int i = 0; i < copyC.size(); i++) {
+                SVEdge* edge = copyC[i];
+                if (equalsEdge(edge, one, two)) {
+                    this->c.erase(this->c.begin() + i);
+                    return true;
+                }
+            }
+            return false;
+        }
+        bool contains(SVEdge* edgeR) {
+            vector<SVEdge*> copyC(this->c);
+            for (int i = 0; i < copyC.size(); i++) {
+                SVEdge* edge = copyC[i];
+                if (equalsEdge(edge, edgeR)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        void refresh() {
+            make_heap(this->c.begin(), this->c.end(), this->comp);
+        }
+        void print() {
+            for (int i = 0; i < this->c.size(); i++) {
+                SVEdge* edge = this->c[i];
+                cout << edge->one->sphere.center.toString() << " to " << edge->two->sphere.center.toString() << "\n";
+            }
+        }
+};
 void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *spheres) {
-    unordered_map<Vertex*, SphereVertex*> sphereVertices;
+    unordered_map<Vertex*, SphereVertex*> vertexSphereMap;
+    vector<SphereVertex*> sphereVertices;
     //Map with vertex pointer as key for building edges from vertices
     for (int i = 0; i < vertices.size(); i++) {
         Vertex* vertex = vertices[i];
         SphereVertex* sv = new SphereVertex(vertex);
-        sphereVertices[vertex] = sv;
+        vertexSphereMap[vertex] = sv;
+        sphereVertices.push_back(sv);
     }
     //use set with custom hash function for fast checking of duplicate edges
     vector<SVEdge*> sphereEdges;
     for (int i = 0; i < faces.size(); i++) {
         Face* face = faces[i];
         //Go through face, add edges to set
-        SphereVertex* a = sphereVertices[face->a];
-        SphereVertex* b = sphereVertices[face->b];
-        SphereVertex* c = sphereVertices[face->c];
+        SphereVertex* a = vertexSphereMap[face->a];
+        SphereVertex* b = vertexSphereMap[face->b];
+        SphereVertex* c = vertexSphereMap[face->c];
 
         a->addNeighbor(b);
         a->addNeighbor(c);
@@ -409,25 +467,102 @@ void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, ve
         SVEdge* bc = new SVEdge(b, c);
         if (!contains(ab, &sphereEdges)) {
             sphereEdges.push_back(ab);
+        } else {
+            delete ab;
         }
         if (!contains(ac, &sphereEdges)) {
             sphereEdges.push_back(ac);
+        } else {
+            delete ac;
         }
         if (!contains(bc, &sphereEdges)) {
             sphereEdges.push_back(bc);
+        } else {
+            delete bc;
         }
     }
     //begin partitioning
-    priority_queue<SVEdge*, vector<SVEdge*>, EdgeComparator> edges;
+    EdgePriorityQueue edges;
     for (SVEdge* edge: sphereEdges) {
         edges.push(edge);
     }
-    while (!edges.empty()) {
+    while (!edges.empty() && sphereVertices.size() > sphereCount) {
+        printf("Start size: %d\n", edges.size());
         SVEdge* edge = edges.top();
         edges.pop();
-        printf("%s to %s\n", edge->one->center.toString().c_str(), edge->two->center.toString().c_str());
-        printf("%f\n", edge->cost);
-        printf("center %s %f\n", edge->minSphere.center.toString().c_str(), edge->minSphere.radius);
+        cout << edge->one->sphere.center.toString() << " to " << edge->two->sphere.center.toString() << "\n";
+        cout << "Sphere: " << edge->minSphere.center.toString() << " " << edge->minSphere.radius << "\n";
+        cout << "Cost: " << edge->cost << "\n";
+        SphereVertex* newVertex = new SphereVertex(edge->sqem, edge->minSphere);
+        newVertex->u = edge->one->sphere.center;
+        newVertex->v = edge->two->sphere.center;
+        //remove old edges
+        sphereVertices.erase(std::remove(sphereVertices.begin(), sphereVertices.end(), edge->one), sphereVertices.end());
+        sphereVertices.erase(std::remove(sphereVertices.begin(), sphereVertices.end(), edge->two), sphereVertices.end());
+        int countRemoves = 0;
+        for (SphereVertex* neighbor: edge->one->neighbors) {
+            if (neighbor != edge->two) {
+                cout << "Neighbor: " << neighbor->sphere.center.toString() << "\n";
+                bool b = edges.remove(edge->one, neighbor);
+                if (b) {
+                    countRemoves++;
+                } else {
+                    printf("Didn't remove:\n");
+                    cout << edge->one->sphere.center.toString() << " to " << neighbor->sphere.center.toString() << "\n";
+                }
+                neighbor->removeNeighbor(edge->one);
+            }
+        }
+        for (SphereVertex* neighbor: edge->two->neighbors) {
+            if (neighbor != edge->one) {
+                cout << "Neighbor: " << neighbor->sphere.center.toString() << "\n";
+                bool b = edges.remove(edge->two, neighbor);
+                if (b) {
+                    countRemoves++;
+                } else {
+                    printf("Didn't remove:\n");
+                    cout << edge->two->sphere.center.toString() << " to " << neighbor->sphere.center.toString() << "\n";
+                }
+                neighbor->removeNeighbor(edge->two);
+            }
+        }
+        printf("%d out of %d\n", countRemoves, edge->one->neighbors.size() + edge->two->neighbors.size());
+        edges.refresh();
+        printf("After remove: %d\n", edges.size());
+        //add new edges
+        for (SphereVertex* neighbor: edge->one->neighbors) {
+            if (neighbor != edge->two) {
+                SVEdge* nedge = new SVEdge(newVertex, neighbor);
+                if (!edges.contains(nedge)) {   
+                    edges.push(nedge);
+                }
+                neighbor->addNeighbor(newVertex);
+                newVertex->addNeighbor(neighbor);
+            }
+        }
+        for (SphereVertex* neighbor: edge->two->neighbors) {
+            if (neighbor != edge->one) {
+                SVEdge* nedge = new SVEdge(newVertex, neighbor);
+                if (!edges.contains(nedge)) {   
+                    edges.push(nedge);
+                }
+                neighbor->addNeighbor(newVertex);
+                newVertex->addNeighbor(neighbor);
+            }
+        }
+        printf("After add: %d\n", edges.size());
+        printf("Current edges:\n");
+        edges.print();
+        sphereVertices.push_back(newVertex);
+        printf("Spheres remaining: %d\n", sphereVertices.size());
+        //cleanup
+        delete edge->one;
+        delete edge->two;
+        delete edge;
+    }
+    printf("Final results!\n");
+    for (SphereVertex* vertex: sphereVertices) {
+        cout << vertex->sphere.center.toString() << " " << vertex->sphere.radius << "\n";
     }
 }
 //Read from file and store spheres and edges in passed arguments
