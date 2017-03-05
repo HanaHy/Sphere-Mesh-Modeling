@@ -3,5 +3,6 @@
 
 int main()
 {
-    calcSphereMesh("Luma.obj", 2, "output");
+    calcSphereMesh("Luma.obj", 10, "Luma.sm");
+    
 }

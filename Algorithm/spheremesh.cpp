@@ -436,7 +436,7 @@ class EdgePriorityQueue : public priority_queue<SVEdge*, vector<SVEdge*>, EdgeCo
             }
         }
 };
-void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *spheres) {
+void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *outputSpheres, vector<SVEdge*> *outputEdges) {
     unordered_map<Vertex*, SphereVertex*> vertexSphereMap;
     vector<SphereVertex*> sphereVertices;
     //Map with vertex pointer as key for building edges from vertices
@@ -561,9 +561,12 @@ void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, ve
         delete edge->two;
         delete edge;
     }
-    printf("Final results!\n");
     for (SphereVertex* vertex: sphereVertices) {
-        cout << vertex->sphere.center.toString() << " " << vertex->sphere.radius << "\n";
+        outputSpheres->push_back(vertex);
+    }
+    while(!edges.empty()) {
+        outputEdges->push_back(edges.top());
+        edges.pop();
     }
 }
 //Read from file and store spheres and edges in passed arguments
@@ -573,15 +576,32 @@ void calcSphereMesh(string filename, int sphereCount, vector<Sphere> *outputSphe
     vector<Face*> faces;
     readObjFile(filename, &vertices, &faces);
     vector<SphereVertex*> spheres;
-    calcSqem(sphereCount, vertices, faces, &spheres);
+    vector<SVEdge*> edges;
+    calcSqem(sphereCount, vertices, faces, &spheres, &edges);
+
+    for (SphereVertex* vertex: spheres) {
+        outputSpheres->push_back(vertex->sphere);
+    }
+    for (SVEdge* edge: edges) {
+        int start = distance(spheres.begin(), find(spheres.begin(), spheres.end(), edge->one));
+        int end = distance(spheres.begin(), find(spheres.begin(), spheres.end(), edge->two));
+        SphereEdge outputEdge(start, end);
+        outputEdges->push_back(outputEdge);
+    }
 }
 
 //Read from file and store spheres and edges in output file
 void calcSphereMesh(string filename, int sphereCount, string outputFile) {
-    printf("writing to file!\n");
-    vector<Vertex*> vertices;
-    vector<Face*> faces;
-    readObjFile(filename, &vertices, &faces);
-    vector<SphereVertex*> spheres;
-    calcSqem(sphereCount, vertices, faces, &spheres);
+    vector<Sphere> spheres;
+    vector<SphereEdge> edges;
+    calcSphereMesh(filename, sphereCount, &spheres, &edges);
+    ofstream output;
+    output.open(outputFile);
+    for (Sphere sphere: spheres) {
+        output << "sphere " << sphere.center.toString() << " " << sphere.radius << "\n";
+    }
+    for (SphereEdge edge: edges) {
+        output << "edge " << edge.start << " " << edge.end << "\n";
+    }
+    output.close();
 }

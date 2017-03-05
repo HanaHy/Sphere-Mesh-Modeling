@@ -67,7 +67,7 @@ class SphereEdge {
     public:
         int start;
         int end;
-        SphereEdge(int start, int end) {}
+        SphereEdge(int st, int e) : start(st), end(e) {}
 };
 
 //Read from file and store spheres and edges in passed arguments
