@@ -389,7 +389,7 @@ bool contains(SVEdge* find, vector<SVEdge*> *edges) {
 class EdgeComparator {
     public:
         bool operator() (SVEdge* one, SVEdge* two) {
-            return one->cost<two->cost;
+            return one->cost>two->cost;
         }
 };
 
@@ -433,7 +433,7 @@ class EdgePriorityQueue : public priority_queue<SVEdge*, vector<SVEdge*>, EdgeCo
         void print() {
             for (int i = 0; i < this->c.size(); i++) {
                 SVEdge* edge = this->c[i];
-                cout << edge->one->sphere.center.toString() << " to " << edge->two->sphere.center.toString() << "\n";
+                cout << edge->one->sphere.center.toString() << " to " << edge->two->sphere.center.toString() << " " <<edge->cost<< "\n";
             }
         }
 };
