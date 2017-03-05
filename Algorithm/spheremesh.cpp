@@ -1,6 +1,7 @@
 #include "spheremesh.h"
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
@@ -312,7 +313,9 @@ void split(string s, char delim, vector<string> *elems) {
     stream.str(s);
     string str;
     while (getline(stream, str, delim)) {
-        elems->push_back(str);
+        if (!str.empty()) {
+            elems->push_back(str);
+        }
     }
 }
 
@@ -322,60 +325,51 @@ void readObjFile(string filename, vector<Vertex*> *vertices, vector<Face*> *face
     while (getline(file, str)) {
         vector<string> elems;
         split(str, ' ', &elems);
-        if (elems.size() >= 4) {
+        if (elems.size() == 4) {
             string command = elems[0];
             if (command == "v") {
                 Vector3d point(stof(elems[1]), stof(elems[2]), stof(elems[3]));
                 Vertex* vertex = new Vertex(point);
                 vertices->push_back(vertex);
             } else if (command == "f") {
-                if (elems.size() - 1 == 3) {
-                    vector<Vertex*> faceVertices;
-                    Face* face = new Face();
-                    for (int i = 1; i <= 3; i++) {
-                        vector<string> params;
-                        split(elems[i], '/', &params);
-                        int index = stoi(params[0]) - 1;
-                        faceVertices.push_back(vertices->at(index));
-                        vertices->at(index)->faces.push_back(face);
-                    }
-                    Vector3d vec1 = Vector3d::sub(faceVertices[1]->point, faceVertices[0]->point);
-                    Vector3d vec2 = Vector3d::sub(faceVertices[2]->point, faceVertices[0]->point);
-                    Vector3d normal = Vector3d::cross(vec1, vec2);
-                    face->a = faceVertices[0];
-                    face->b = faceVertices[1];
-                    face->c = faceVertices[2];
-                    face->normal = normal;
-                    faces->push_back(face);
-                } else {
-                    printf("This sphere mesh implementation only supports triangular faces!");
+                vector<Vertex*> faceVertices;
+                Face* face = new Face();
+                for (int i = 1; i <= 3; i++) {
+                    vector<string> params;
+                    split(elems[i], '/', &params);
+                    int index = stoi(params[0]) - 1;
+                    faceVertices.push_back(vertices->at(index));
+                    vertices->at(index)->faces.push_back(face);
                 }
+                Vector3d vec1 = Vector3d::sub(faceVertices[1]->point, faceVertices[0]->point);
+                Vector3d vec2 = Vector3d::sub(faceVertices[2]->point, faceVertices[0]->point);
+                Vector3d normal = Vector3d::cross(vec1, vec2);
+                face->a = faceVertices[0];
+                face->b = faceVertices[1];
+                face->c = faceVertices[2];
+                face->normal = normal;
+                faces->push_back(face);
             }
         }
     }
 }
-struct EdgeEqual {
-    bool operator () (SVEdge* one, SVEdge* two) const {
-        if (one->one == two->one && one->two == two->two) {
+bool equalsEdge(SVEdge* one, SVEdge* two) {
+    if (one->one == two->one && one->two == two->two) {
+        return true;
+    }
+    if (one->one == two->two && one->two == two->one) {
+        return true;
+    }
+    return false;
+}
+bool contains(SVEdge* find, vector<SVEdge*> *edges) {
+    for (int i = 0; i < edges->size(); i++) {
+        if (equalsEdge(find, edges->at(i))) {
             return true;
         }
-        if (one->one == two->two && one->two == two->one) {
-            return true;
-        }
-        return false;
     }
-};
-template<>
-struct hash<SVEdge*> {
-    size_t operator()(const SVEdge* edge) const {
-        float mag1 = edge->one->center.magnitude();
-        float mag2 = edge->two->center.magnitude();
-        if (mag1 < mag2) {
-            return hash<SphereVertex*>()(edge->one);
-        }
-        return hash<SphereVertex*>()(edge->two);
-    }
-};
+    return false;
+}
 class EdgeComparator {
     public:
         bool operator() (SVEdge* one, SVEdge* two) {
@@ -383,7 +377,7 @@ class EdgeComparator {
         }
 };
 
-void calcSqem(vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *spheres) {
+void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *spheres) {
     unordered_map<Vertex*, SphereVertex*> sphereVertices;
     //Map with vertex pointer as key for building edges from vertices
     for (int i = 0; i < vertices.size(); i++) {
@@ -392,7 +386,7 @@ void calcSqem(vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex
         sphereVertices[vertex] = sv;
     }
     //use set with custom hash function for fast checking of duplicate edges
-    unordered_set<SVEdge*, hash<SVEdge*>, EdgeEqual> sphereEdges;
+    vector<SVEdge*> sphereEdges;
     for (int i = 0; i < faces.size(); i++) {
         Face* face = faces[i];
         //Go through face, add edges to set
@@ -408,11 +402,15 @@ void calcSqem(vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex
         c->addNeighbor(b);
         SVEdge* ab = new SVEdge(a, b);
         SVEdge* ac = new SVEdge(a, c);
-        if (sphereEdges.count(ab) == 0) {
-            sphereEdges.insert(ab);
+        SVEdge* bc = new SVEdge(b, c);
+        if (!contains(ab, &sphereEdges)) {
+            sphereEdges.push_back(ab);
         }
-        if (sphereEdges.count(ac) == 0) {
-            sphereEdges.insert(ac);
+        if (!contains(ac, &sphereEdges)) {
+            sphereEdges.push_back(ac);
+        }
+        if (!contains(bc, &sphereEdges)) {
+            sphereEdges.push_back(bc);
         }
     }
     //begin partitioning
@@ -428,10 +426,15 @@ void calcSphereMesh(string filename, int sphereCount, vector<Sphere> *outputSphe
     vector<Face*> faces;
     readObjFile(filename, &vertices, &faces);
     vector<SphereVertex*> spheres;
-    calcSqem(vertices, faces, &spheres);
+    calcSqem(sphereCount, vertices, faces, &spheres);
 }
 
 //Read from file and store spheres and edges in output file
 void calcSphereMesh(string filename, int sphereCount, string outputFile) {
     printf("writing to file!\n");
+    vector<Vertex*> vertices;
+    vector<Face*> faces;
+    readObjFile(filename, &vertices, &faces);
+    vector<SphereVertex*> spheres;
+    calcSqem(sphereCount, vertices, faces, &spheres);
 }
