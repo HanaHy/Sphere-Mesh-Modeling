@@ -3,6 +3,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
+#include <queue>
 #include "Eigen/Dense"
 
 #define epsilon 0.0001
@@ -281,10 +282,16 @@ class SphereVertex {
         Vector3d u;
         Vector3d v;
         Vector3d center;
+        vector<SphereVertex*> neighbors;
         SphereVertex(Vertex* vertex) {
             sqem = SQEM(vertex);
         }
         SphereVertex(SQEM sq, Vector3d cen) : sqem(sq), center(cen) {
+        }
+        void addNeighbor(SphereVertex* neighbor) {
+            if (find(neighbors.begin(), neighbors.end(), neighbor) == neighbors.end()) {
+                neighbors.push_back(neighbor);
+            }
         }
 };
 class SVEdge {
@@ -348,7 +355,7 @@ void readObjFile(string filename, vector<Vertex*> *vertices, vector<Face*> *face
     }
 }
 struct EdgeEqual {
-    bool operator () (SVEdge* one, SVEdge* two) {
+    bool operator () (SVEdge* one, SVEdge* two) const {
         if (one->one == two->one && one->two == two->two) {
             return true;
         }
@@ -360,7 +367,7 @@ struct EdgeEqual {
 };
 template<>
 struct hash<SVEdge*> {
-    size_t operator()(const SVEdge* edge) {
+    size_t operator()(const SVEdge* edge) const {
         float mag1 = edge->one->center.magnitude();
         float mag2 = edge->two->center.magnitude();
         if (mag1 < mag2) {
@@ -369,6 +376,13 @@ struct hash<SVEdge*> {
         return hash<SphereVertex*>()(edge->two);
     }
 };
+class EdgeComparator {
+    public:
+        bool operator() (SVEdge* one, SVEdge* two) {
+            return one->cost>two->cost;
+        }
+};
+
 void calcSqem(vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *spheres) {
     unordered_map<Vertex*, SphereVertex*> sphereVertices;
     //Map with vertex pointer as key for building edges from vertices
@@ -382,8 +396,30 @@ void calcSqem(vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex
     for (int i = 0; i < faces.size(); i++) {
         Face* face = faces[i];
         //Go through face, add edges to set
+        SphereVertex* a = sphereVertices[face->a];
+        SphereVertex* b = sphereVertices[face->b];
+        SphereVertex* c = sphereVertices[face->c];
+
+        a->addNeighbor(b);
+        a->addNeighbor(c);
+        b->addNeighbor(a);
+        b->addNeighbor(c);
+        c->addNeighbor(a);
+        c->addNeighbor(b);
+        SVEdge* ab = new SVEdge(a, b);
+        SVEdge* ac = new SVEdge(a, c);
+        if (sphereEdges.count(ab) == 0) {
+            sphereEdges.insert(ab);
+        }
+        if (sphereEdges.count(ac) == 0) {
+            sphereEdges.insert(ac);
+        }
     }
     //begin partitioning
+    priority_queue<SVEdge*, vector<SVEdge*>, EdgeComparator> edges;
+    for (SVEdge* edge: sphereEdges) {
+        edges.push(edge);
+    }
 }
 //Read from file and store spheres and edges in passed arguments
 void calcSphereMesh(string filename, int sphereCount, vector<Sphere> *outputSpheres, vector<SphereEdge> *outputEdges) {
