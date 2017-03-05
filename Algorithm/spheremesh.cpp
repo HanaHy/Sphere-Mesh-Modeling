@@ -286,6 +286,7 @@ class SphereVertex {
         vector<SphereVertex*> neighbors;
         SphereVertex(Vertex* vertex) {
             sqem = SQEM(vertex);
+            center = vertex->point;
         }
         SphereVertex(SQEM sq, Vector3d cen) : sqem(sq), center(cen) {
         }
@@ -347,7 +348,9 @@ void readObjFile(string filename, vector<Vertex*> *vertices, vector<Face*> *face
                 face->a = faceVertices[0];
                 face->b = faceVertices[1];
                 face->c = faceVertices[2];
+                face->area = normal.magnitude() * 0.5;
                 face->normal = normal;
+                face->normal.normalize();
                 faces->push_back(face);
             }
         }
@@ -417,6 +420,13 @@ void calcSqem(int sphereCount, vector<Vertex*> vertices, vector<Face*> faces, ve
     priority_queue<SVEdge*, vector<SVEdge*>, EdgeComparator> edges;
     for (SVEdge* edge: sphereEdges) {
         edges.push(edge);
+    }
+    while (!edges.empty()) {
+        SVEdge* edge = edges.top();
+        edges.pop();
+        printf("%s to %s\n", edge->one->center.toString().c_str(), edge->two->center.toString().c_str());
+        printf("%f\n", edge->cost);
+        printf("center %s %f\n", edge->minSphere.center.toString().c_str(), edge->minSphere.radius);
     }
 }
 //Read from file and store spheres and edges in passed arguments

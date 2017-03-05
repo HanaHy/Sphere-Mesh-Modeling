@@ -52,6 +52,9 @@ class Vector3d {
             y = y / len;
             z = z / len;
         }
+        string toString() {
+            return to_string(x) + " " + to_string(y) + " " + to_string(z);
+        }
 };
 class Sphere {
     public:
