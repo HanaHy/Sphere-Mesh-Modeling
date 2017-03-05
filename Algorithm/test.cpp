@@ -3,5 +3,5 @@
 
 int main()
 {
-    calcSphereMesh("cube.obj", 2, "output");
+    calcSphereMesh("Luma.obj", 2, "output");
 }
