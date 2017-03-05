@@ -1,2 +1,2 @@
 all:
-	g++ -std=c++11 -o SphereMeshTest *.cpp
+	g++ -std=c++11 -o SphereMeshTest.out *.cpp

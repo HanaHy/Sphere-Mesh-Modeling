@@ -107,6 +107,7 @@ class SQEM {
                     sphere->radius = radius;
                     return computeError(*sphere);
                 } else {
+                    //Check this math please - solving for fixed radii
                     Matrix3f qem;
                     qem << A(0, 0), A(0, 1), A(0, 2),
                            A(1, 0), A(1, 1), A(1, 2),
@@ -148,27 +149,103 @@ class SQEM {
             float atr = A(3, 0) * uv.x + A(3, 1) * uv.y + A(3, 2) * uv.z;
             float abl = atr;
             float abr = A(3, 3);
-
-            float ahatDeterminant = atl * abr - atr * abl;
-            if (ahatDeterminant > epsilon) {
-                float bt = (b(0) * uv.x + b(1) * uv.y + b(2) * uv.z) - (
+            float bt = (b(0) * uv.x + b(1) * uv.y + b(2) * uv.z) - (
                         (A(0, 0) * uv.x + A(0, 1) * uv.y + A(0, 2) * uv.z) * u.x + 
                         (A(1, 0) * uv.x + A(1, 1) * uv.y + A(1, 2) * uv.z) * u.y + 
                         (A(2, 0) * uv.x + A(2, 1) * uv.y + A(2, 2) * uv.z) * u.z);
-                float bb = b(3) - (A(3, 0) * u.x + A(3, 1) * u.y + A(3, 2) * u.z);
-                float chat = c - (b(0) * u.x + b(1) * u.y + b(2) * u.z) + 0.5 * (
-                        (A(0, 0) * u.x + A(0, 1) * u.y + A(0, 2) * u.z) * u.x + 
-                        (A(1, 0) * u.x + A(1, 1) * u.y + A(1, 2) * u.z) * u.y + 
-                        (A(2, 0) * u.x + A(2, 1) * u.y + A(2, 2) * u.z) * u.z);
-                Matrix2f ahat;
-                ahat << atl, atr,
-                        abl, abr;
-                Vector2f bhat;
-                bhat << bt, bb;
-                Vector2f result = ahat * bhat;
+            float bb = b(3) - (A(3, 0) * u.x + A(3, 1) * u.y + A(3, 2) * u.z);
+            float chat = c - (b(0) * u.x + b(1) * u.y + b(2) * u.z) + 0.5 * (
+                    (A(0, 0) * u.x + A(0, 1) * u.y + A(0, 2) * u.z) * u.x + 
+                    (A(1, 0) * u.x + A(1, 1) * u.y + A(1, 2) * u.z) * u.y + 
+                    (A(2, 0) * u.x + A(2, 1) * u.y + A(2, 2) * u.z) * u.z);
+            Matrix2f ahat;
+            ahat << atl, atr,
+                    abl, abr;
+            Vector2f bhat;
+            bhat << bt, bb;
+
+            float ahatDeterminant = atl * abr - atr * abl;
+            if (ahatDeterminant > epsilon) {
+                Matrix2f ahatinv = ahat.inverse();
+                Vector2f result = ahatinv * bhat;
                 //If minimizer is outside of allowed range, test boundaries.
                 if (result(0) < 0 || result(0) > 1 || result(2) < 0 || result(2) > maxRadius) {
+                    //lambda = 0
+                    float lambda = 0;
+                    float radius = (bb - lambda * abl)/abr;
+                    if (radius < 0) {
+                        radius = 0;
+                    }
+                    if (radius > maxRadius) {
+                        radius = maxRadius;
+                    }
+                    Vector3d lambdauv = Vector3d::mult_num(uv, lambda);
+                    Vector3d ncenter = Vector3d::add(u, lambdauv);
+                    Sphere nullLambdaSphere(ncenter, radius);
+                    float nullLambdaCost = computeError2d(lambda, radius, ahat, bhat, chat);
 
+                    //lambda = 1;
+                    lambda = 1;
+                    radius = (bb - lambda * abl)/abr;
+                    if (radius < 0) {
+                        radius = 0;
+                    }
+                    if (radius > maxRadius) {
+                        radius = maxRadius;
+                    }
+                    lambdauv = Vector3d::mult_num(uv, lambda);
+                    ncenter = Vector3d::add(u, lambdauv);
+                    Sphere oneLambdaSphere(ncenter, radius);
+                    float oneLambdaCost = computeError2d(lambda, radius, ahat, bhat, chat);
+
+                    //radius = 0;
+                    radius = 0;
+                    lambda = (bt - radius * abl)/atl;
+                    if (lambda < 0) {
+                        lambda = 0;
+                    }
+                    if (lambda > 1) {
+                        lambda = 1;
+                    }
+                    lambdauv = Vector3d::mult_num(uv, lambda);
+                    ncenter = Vector3d::add(u, lambdauv);
+                    Sphere nullRadiusSphere(ncenter, radius);
+                    float nullRadiusCost = computeError2d(lambda, radius, ahat, bhat, chat);
+                    
+                    //radius = maxRadius;
+                    radius = maxRadius;
+                    lambda = (bt - radius * abl)/atl;
+                    if (lambda < 0) {
+                        lambda = 0;
+                    }
+                    if (lambda > 1) {
+                        lambda = 1;
+                    }
+                    lambdauv = Vector3d::mult_num(uv, lambda);
+                    ncenter = Vector3d::add(u, lambdauv);
+                    Sphere maxRadiusSphere(ncenter, radius);
+                    float maxRadiusCost = computeError2d(lambda, radius, ahat, bhat, chat);
+                    //hopefully I didn't type these wrong...
+                    if (maxRadiusCost <= nullRadiusCost && maxRadiusCost <= oneLambdaCost && maxRadiusCost <= nullLambdaCost) {
+                        sphere->center = maxRadiusSphere.center;
+                        sphere->radius = maxRadiusSphere.radius;
+                        return maxRadiusCost;
+                    }
+                    if (nullRadiusCost <= maxRadiusCost && nullRadiusCost <= oneLambdaCost && nullRadiusCost <= nullLambdaCost) {
+                        sphere->center = nullRadiusSphere.center;
+                        sphere->radius = nullRadiusSphere.radius;
+                        return nullRadiusCost;
+                    }
+                    if (oneLambdaCost <= nullRadiusCost && oneLambdaCost <= maxRadiusCost && oneLambdaCost <= nullLambdaCost) {
+                        sphere->center = oneLambdaSphere.center;
+                        sphere->radius = oneLambdaSphere.radius;
+                        return oneLambdaCost;
+                    }
+                    if (nullLambdaCost <= nullRadiusCost && nullLambdaCost <= maxRadiusCost && nullLambdaCost <= oneLambdaCost) {
+                        sphere->center = nullLambdaSphere.center;
+                        sphere->radius = nullLambdaSphere.radius;
+                        return nullLambdaCost;
+                    }
                 } else {
                     float lambda = result(0);
                     float radius = result(1);
@@ -180,7 +257,20 @@ class SQEM {
                 }
             }
             //If above not invertible, solve for fixed point on midpoint, variant radius
-            
+            float lambda = 0.5;
+            float radius = (bb - lambda * abl)/abr;
+            if (radius < 0) {
+                radius = 0;
+            }
+            if (radius > maxRadius) {
+                radius = maxRadius;
+            }
+            Vector3d lambdauv = Vector3d::mult_num(uv, lambda);
+            Vector3d ncenter = Vector3d::add(u, lambdauv);
+            float midpointSphereCost = computeError2d(lambda, radius, ahat, bhat, chat);
+            sphere->center = ncenter;
+            sphere->radius = radius;
+            return midpointSphereCost;
         }
 };
 class SphereVertex {
