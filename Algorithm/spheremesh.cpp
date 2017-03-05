@@ -45,10 +45,12 @@ class SQEM {
         SQEM() {
             A = Matrix4f::Zero();
             b = Vector4f::Zero();
+            c = 0;
         }
         SQEM(Vertex* vertex) {
             A = Matrix4f::Zero();
             b = Vector4f::Zero();
+            c = 0;
             vector<Face*> faces = vertex->faces;
             for (int i = 0; i < faces.size(); i++) {
                 Face* face = faces[i];
@@ -82,7 +84,6 @@ class SQEM {
             Vector4f lr = A * s;
             float left = 0.5 * s.dot(lr);
             float middle = b.dot(s);
-
             return left - middle + c;
         }
         float computeError2d(float lambda, float radius, Matrix2f ahat, Vector2f bhat, float chat) {
