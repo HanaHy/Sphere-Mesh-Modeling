@@ -1,6 +1,8 @@
 #include "spheremesh.h"
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
+#include <unordered_set>
 #include "Eigen/Dense"
 
 #define epsilon 0.0001
@@ -276,10 +278,26 @@ class SQEM {
 class SphereVertex {
     public:
         SQEM sqem;
-        vector<SphereVertex*> neighbors;
         Vector3d u;
         Vector3d v;
-        SphereVertex() {}
+        Vector3d center;
+        SphereVertex(Vertex* vertex) {
+            sqem = SQEM(vertex);
+        }
+        SphereVertex(SQEM sq, Vector3d cen) : sqem(sq), center(cen) {
+        }
+};
+class SVEdge {
+    public:
+        SphereVertex* one;
+        SphereVertex* two;
+        float cost;
+        SQEM sqem;
+        Sphere minSphere;
+        SVEdge(SphereVertex* o, SphereVertex* t) : one(o), two(t) {
+            sqem = SQEM::addSQEMs(o->sqem, t->sqem);
+            cost = sqem.getMinSphere(o->center, t->center, 1000, &minSphere);
+        }
 };
 
 void split(string s, char delim, vector<string> *elems) {
@@ -329,8 +347,43 @@ void readObjFile(string filename, vector<Vertex*> *vertices, vector<Face*> *face
         }
     }
 }
-void calcSqem(vector<Vertex*> *vertices, vector<Face*> *faces, vector<SphereVertex*> *spheres) {
-
+struct EdgeEqual {
+    bool operator () (SVEdge* one, SVEdge* two) {
+        if (one->one == two->one && one->two == two->two) {
+            return true;
+        }
+        if (one->one == two->two && one->two == two->one) {
+            return true;
+        }
+        return false;
+    }
+};
+template<>
+struct hash<SVEdge*> {
+    size_t operator()(const SVEdge* edge) {
+        float mag1 = edge->one->center.magnitude();
+        float mag2 = edge->two->center.magnitude();
+        if (mag1 < mag2) {
+            return hash<SphereVertex*>()(edge->one);
+        }
+        return hash<SphereVertex*>()(edge->two);
+    }
+};
+void calcSqem(vector<Vertex*> vertices, vector<Face*> faces, vector<SphereVertex*> *spheres) {
+    unordered_map<Vertex*, SphereVertex*> sphereVertices;
+    //Map with vertex pointer as key for building edges from vertices
+    for (int i = 0; i < vertices.size(); i++) {
+        Vertex* vertex = vertices[i];
+        SphereVertex* sv = new SphereVertex(vertex);
+        sphereVertices[vertex] = sv;
+    }
+    //use set with custom hash function for fast checking of duplicate edges
+    unordered_set<SVEdge*, hash<SVEdge*>, EdgeEqual> sphereEdges;
+    for (int i = 0; i < faces.size(); i++) {
+        Face* face = faces[i];
+        //Go through face, add edges to set
+    }
+    //begin partitioning
 }
 //Read from file and store spheres and edges in passed arguments
 void calcSphereMesh(string filename, int sphereCount, vector<Sphere> *outputSpheres, vector<SphereEdge> *outputEdges) {
@@ -339,7 +392,7 @@ void calcSphereMesh(string filename, int sphereCount, vector<Sphere> *outputSphe
     vector<Face*> faces;
     readObjFile(filename, &vertices, &faces);
     vector<SphereVertex*> spheres;
-    calcSqem(&vertices, &faces, &spheres);
+    calcSqem(vertices, faces, &spheres);
 }
 
 //Read from file and store spheres and edges in output file
