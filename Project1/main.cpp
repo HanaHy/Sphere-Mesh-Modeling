@@ -357,6 +357,29 @@ void DrawCircle(float cx, float cy, float r, int num_segments)
   } 
   glEnd(); 
 }
+Point getClosestPoint(Point a, Point b, Point c) {
+  float acx = c.x - a.x;
+  float acy = c.y - a.y;
+  float acz = c.z - a.z;
+  
+  float abx = b.x - a.x;
+  float aby = b.y - a.y;
+  float abz = b.z - a.z;
+  
+  float distance = abx * abx + aby * aby + abz * abz;
+  
+  float dot = acx * abx + acy * aby + acz * abz;
+  float t = dot/distance;
+  
+  float x = a.x + t * abx;
+  float y = a.y + t * aby;
+  float z = a.z + t * abz;
+  Point p;
+  p.x = x;
+  p.y = y;
+  p.z = z;
+  return p;
+}
 void sphereMesh() {
   
   glColor3f(0.5, 0, 0);
@@ -371,26 +394,6 @@ void sphereMesh() {
   }
   SphereDisp a;
   SphereDisp b;
-  for (int i = 0; i < edges.size(); i++) {
-    glPushMatrix();
-    a = spheres.at(edges[i].a);
-    b = spheres.at(edges[i].b);
-    float xdiff = b.x - a.x;
-    float ydiff = b.y - a.y;
-    float zdiff = b.z - a.z;
-    float distance = sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff);
-    float axisx = ydiff * distance - zdiff * 0;
-    float axisy = zdiff * 0 - xdiff * distance;
-    float axisz = xdiff * 0 - ydiff * 0;
-    
-    float dot = xdiff * 0 + ydiff * 0 + zdiff * 1;
-    float angle = acos(dot/(distance * distance));
-    glTranslatef(b.x, b.y, b.z);
-    glRotatef(angle * 180/PI, axisx, axisy, axisz);
-    GLUquadric *quad = gluNewQuadric();
-    gluCylinder(quad,b.radius,a.radius, distance, 10, 10);
-    glPopMatrix();
-  }
   
   /*GLUquadric *quad;
   quad = gluNewQuadric();
@@ -426,45 +429,77 @@ void sphereMesh() {
   //DrawCircle(a.x, a.y, a.radius+10, 500);
   if(interpMode)
   {
-    //Get vector direction of edge
-    Point vDir;
-    vDir.x = a.x - b.x;
-    vDir.y = a.y - b.y;
-    vDir.z = a.z - b.z;
     
-    //tan Vect is (1, 1, z)
-    float tanDir = (-vDir.x - vDir.y)/(vDir.z);
-    
-    float unitLength = sqrt(1 + 1 + tanDir*tanDir);
-    
-    Point s;
-    s.x = a.x + (1.0/unitLength)*(a.radius);
-    s.y = a.y + (1.0/unitLength)*(a.radius);
-    s.z = a.z + (tanDir/unitLength)*(a.radius);
-    
-    Point sB;
-    sB.x = b.x + (1.0/unitLength)*(b.radius);
-    sB.y = b.y + (1.0/unitLength)*(b.radius);
-    sB.z = b.z + (tanDir/unitLength)*(b.radius);
-    
-    glBegin(GL_LINES);
-    glColor3f(1, 0, 0);
-    
-    //glVertex3f(a.x, a.y, a.z);
-    glVertex3f(s.x, s.y, s.z);
-    
-    //glVertex3f(b.x, b.y, b.z);
-    glColor3f(0, 1, 0);
-    glVertex3f(sB.x, sB.y, sB.z);
-    
-   // glVertex3f(s.x, s.y, s.z);
-    
-    //glVertex3f(b.x, b.y, b.z);
-    //glVertex3f(sB.x, sB.y, sB.z);
-    
-    
-    
-    glEnd();
+    for (int i = 0; i < edges.size(); i++) {
+      glPushMatrix();
+      a = spheres.at(edges[i].a);
+      b = spheres.at(edges[i].b);
+      if (a.x != b.x || a.y != b.y || a.z != b.z) {
+          
+        float xdiff = b.x - a.x;
+        float ydiff = b.y - a.y;
+        float zdiff = b.z - a.z;
+        float distance = sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff);
+        float axisx = ydiff * distance - zdiff * 0;
+        float axisy = zdiff * 0 - xdiff * distance;
+        float axisz = xdiff * 0 - ydiff * 0;
+        
+        float dot = xdiff * 0 + ydiff * 0 + zdiff * 1;
+        float angle = acos(dot/(distance * distance));
+          
+        
+        float radDiff = a.radius - b.radius;
+        float yDiff = a.y - b.y;
+        float xDiff = a.x - b.x;
+        if (b.radius > a.radius) {
+          radDiff = b.radius - a.radius;
+          yDiff = b.y - a.y;
+          xDiff = b.x - a.x;
+        }
+        float beta = asin((radDiff)/sqrt(xdiff * xdiff + ydiff*ydiff));
+        float gamma = atan(-yDiff/xDiff);
+        float alpha = gamma - beta;
+        float x3 = a.x + a.radius * cos(PI/2 - alpha);
+        float y3 = a.y + a.radius * sin(PI/2 - alpha);
+        float z3 = a.z;
+        float x4 = b.x + b.radius * cos(PI/2 - alpha);
+        float y4 = b.y + b.radius * sin(PI/2 - alpha);
+        float z4 = b.z;
+        
+        Point three;
+        three.x = x3;
+        three.y = y3;
+        three.z = z3;
+        
+        Point four;
+        four.x = x4;
+        four.y = y4;
+        four.z = z4;
+        
+        Point ap;
+        ap.x = a.x;
+        ap.y = a.y;
+        ap.z = a.z;
+        
+        Point bp;
+        bp.x = b.x;
+        bp.y = b.y;
+        bp.z = b.z;
+        
+        Point a1 = getClosestPoint(ap, bp, three);
+        Point b1 = getClosestPoint(ap, bp, four);
+        
+        float radius1 = sqrt((x3 - a1.x)*(x3 - a1.x) + (y3 - a1.y)*(y3 - a1.y) + (z3 - a1.z)*(z3 - a1.z));
+        float radius2 = sqrt((x4 - b1.x)*(x4 - b1.x) + (y4 - b1.y)*(y4 - b1.y) + (z4 - b1.z)*(z4 - b1.z));
+        float truedist = sqrt((b1.x-a1.x)*(b1.x-a1.x) + (b1.y-a1.y)*(b1.y-a1.y) + (b1.z-a1.z)*(b1.z-a1.z));
+        
+        glTranslatef(b1.x, b1.y, b1.z);
+        glRotatef(angle * 180/PI, axisx, axisy, axisz);
+        GLUquadric *quad = gluNewQuadric();
+        gluCylinder(quad,radius2,radius1, truedist, 50, 50);
+        glPopMatrix();
+      }
+    }
     
   }
   glDisable(GL_SMOOTH);
