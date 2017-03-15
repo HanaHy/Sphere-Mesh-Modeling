@@ -605,3 +605,88 @@ void calcSphereMesh(string filename, int sphereCount, string outputFile) {
     }
     output.close();
 }
+
+
+float calcTotalCost(vector<Sphere*> *spheres, vector<SphereVertex*> *sphereVertices) {
+    float totalCost = 0;
+    for (int i = 0; i < sphereVertices->size(); i++) {
+        float minCost = sphereVertices->at(i)->sqem.computeError(*(spheres->at(0)));
+        for (int j = 1; j < spheres->size(); j++) {
+            float cost = sphereVertices->at(i)->sqem.computeError(*(spheres->at(j)));
+            if (cost < minCost) {
+                minCost = cost;
+            }
+        }
+        totalCost += minCost;
+        printf("%f\n", minCost);
+    }
+    return totalCost;
+}
+//Read from file and store spheres and edges in output file
+void calcSphereMeshGradient(string filename, int sphereCount, string outputFile, float threshold) {
+    vector<Vertex*> vertices;
+    vector<Face*> faces;
+    readObjFile(filename, &vertices, &faces);
+    vector<Sphere*> spheres;
+    vector<SphereVertex*> sphereVertices;
+    //Map with vertex pointer as key for building edges from vertices
+    float minX = 10000;
+    float maxX = -10000;
+    float minY = 10000;
+    float maxY = -10000;
+    float minZ = 10000;
+    float maxZ = -10000;
+    for (int i = 0; i < vertices.size(); i++) {
+        Vertex* vertex = vertices[i];
+        SphereVertex* sv = new SphereVertex(vertex);
+        sphereVertices.push_back(sv);
+        if (vertex->point.x < minX) {
+            minX = vertex->point.x;
+        }
+        if (vertex->point.x > maxX) {
+            maxX = vertex->point.x;
+        }
+        if (vertex->point.y < minY) {
+            minY = vertex->point.y;
+        }
+        if (vertex->point.y > maxY) {
+            maxY = vertex->point.y;
+        }
+        if (vertex->point.z < minZ) {
+            minZ = vertex->point.z;
+        }
+        if (vertex->point.z > maxZ) {
+            maxZ = vertex->point.z;
+        }
+    }
+    srand((unsigned)time(NULL));
+    for (int i = 0; i < sphereCount; i++) {
+        float x = ((double) rand() / (RAND_MAX));
+        float y = ((double) rand() / (RAND_MAX));
+        float z = ((double) rand() / (RAND_MAX));
+        float radius = 5;
+        Sphere* sphere = new Sphere(Vector3d(x, y, z), radius);
+        spheres.push_back(sphere);
+    }
+    float totalCost = calcTotalCost(&spheres, &sphereVertices);
+    printf("%f\n", totalCost);
+    while (totalCost > threshold) {
+        unordered_map<Sphere*, SQEM> sphereSQMap;
+        for (SphereVertex* vertex: sphereVertices) {
+            float minCost = vertex->sqem.computeError(*(spheres.at(0)));
+            Sphere* minSphere = spheres.at(0);
+            for (int j = 1; j < spheres.size(); j++) {
+                float cost = vertex->sqem.computeError(*(spheres.at(j)));
+                if (cost < minCost) {
+                    minCost = cost;
+                    minSphere = spheres.at(j);
+                }
+            }
+            if (!sphereSQMap.count(minSphere)) {
+                sphereSQMap[minSphere] = vertex->sqem;
+            } else {
+                sphereSQMap[minSphere] = SQEM::addSQEMs(vertex->sqem, sphereSQMap[minSphere]);
+            }
+        }
+    }
+}

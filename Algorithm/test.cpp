@@ -3,6 +3,6 @@
 
 int main()
 {
-    calcSphereMesh("Luma.obj", 10, "Luma.sm");
+    calcSphereMeshGradient("cube.obj", 2, "cube.sm");
     
 }

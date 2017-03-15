@@ -76,4 +76,6 @@ void calcSphereMesh(string filename, int sphereCount, vector<Sphere> *outputSphe
 //Read from file and store spheres and edges in output file
 void calcSphereMesh(string filename, int sphereCount, string outputFile);
 
+void calcSphereMeshGradient(string filename, int sphereCount, string outputFile, float threshold=0.1);
+
 #endif

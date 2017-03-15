@@ -357,7 +357,6 @@ void DrawCircle(float cx, float cy, float r, int num_segments)
   } 
   glEnd(); 
 }
-
 void sphereMesh() {
   
   glColor3f(0.5, 0, 0);
@@ -370,7 +369,28 @@ void sphereMesh() {
     //gluSphere(quad, spheres[i].radius, 100, 100);
     glPopMatrix();
   }
-  
+  SphereDisp a;
+  SphereDisp b;
+  for (int i = 0; i < edges.size(); i++) {
+    glPushMatrix();
+    a = spheres.at(edges[i].a);
+    b = spheres.at(edges[i].b);
+    float xdiff = b.x - a.x;
+    float ydiff = b.y - a.y;
+    float zdiff = b.z - a.z;
+    float distance = sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff);
+    float axisx = ydiff * distance - zdiff * 0;
+    float axisy = zdiff * 0 - xdiff * distance;
+    float axisz = xdiff * 0 - ydiff * 0;
+    
+    float dot = xdiff * 0 + ydiff * 0 + zdiff * 1;
+    float angle = acos(dot/(distance * distance));
+    glTranslatef(b.x, b.y, b.z);
+    glRotatef(angle * 180/PI, axisx, axisy, axisz);
+    GLUquadric *quad = gluNewQuadric();
+    gluCylinder(quad,b.radius,a.radius, distance, 10, 10);
+    glPopMatrix();
+  }
   
   /*GLUquadric *quad;
   quad = gluNewQuadric();
@@ -386,8 +406,6 @@ void sphereMesh() {
   glBegin(GL_LINES);
   glEnable (GL_LINE_SMOOTH);
   glLineWidth(3);
-  SphereDisp a;
-  SphereDisp b;
   for(int i = 0; i < edges.size(); i++)
   {
     a = spheres.at(edges[i].a);
@@ -726,7 +744,7 @@ int main(int argc, char** argv)
   glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH); 
   glutInitWindowSize(width, height); 
   glutCreateWindow("SPHERE MESH RENDER");
-  calcSphereMesh("Luma.obj", 10, "output.sm");
+  calcSphereMesh("Luma.obj", 20, "output.sm");
   load_obj(inputMesh.c_str(), vertices, faces, textCoords);
   load_obj(outputMesh.c_str(), spheres, edges);
     init();
